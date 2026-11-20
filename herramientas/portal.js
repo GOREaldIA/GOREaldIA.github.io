@@ -1,0 +1,1 @@
+window.MC_PORTAL = {"sello": "G<i>D</i>", "nombre": "GORE al <i>Día</i>", "corto": "GORE<br>al <i>Día</i>", "lema": "Gobiernos regionales · Perú", "repo": "GOREaldIA/GOREaldIA.github.io", "elegir": "Elige el gobierno regional", "portada": "Gobiernos regionales", "quien": "cada gobierno regional", "colores": {"navy": "#12304a", "navy2": "#0a1f33", "gold": "#2fc4a0"}};

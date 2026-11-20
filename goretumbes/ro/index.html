@@ -151,7 +151,7 @@ nav.top{margin-top:0}
 @media (max-width:820px){header .hcab{grid-template-columns:1fr}header{padding:14px 0 14px}}
 @media (max-width:640px){header .eyebrow{font-size:11px}header h1{font-size:24px;margin:2px 0 4px}header .meta{font-size:12.5px}header .indep{font-size:12px;margin-top:6px}header .corte>b{padding:8px 12px;font-size:14.5px}header .radar{padding:6px 12px}}
 </style>
-<link rel="stylesheet" href="/herramientas/marco.css"><script src="/herramientas/marco.js"></script>
+<link rel="stylesheet" href="/herramientas/marco.css"><script src="/herramientas/portal.js"></script><script src="/herramientas/marco.js"></script>
 </head>
 <body>
 <a href="#cuadro" class="sr" onfocus="this.classList.remove('sr')" onblur="this.classList.add('sr')">Saltar al cuadro por unidad</a>
@@ -364,7 +364,7 @@ function revisiones(){const L=(REV&&REV.revisiones||D.revisiones_corte||[]).slic
 // 1) estado.json: lo que hizo la última corrida que publicó (nuevo corte, cifras revisadas, sin cambios o corte conservado).
 // 2) API pública de GitHub: estado real de la última consulta automática (en curso, terminada sin errores o con error).
 // 3) Hora de la próxima consulta prevista: solo informativa; GitHub puede iniciarla con retraso.
-const REPO=location.hostname.endsWith('.github.io')?location.hostname.split('.')[0]+'/'+location.hostname:'GOREaldIA/GOREaldIA.github.io';
+const REPO=location.hostname.endsWith('.github.io')?location.hostname.split('.')[0]+'/'+location.hostname:(window.MC_PORTAL&&MC_PORTAL.repo)||'MinistroaldIA/MinistroaldIA.github.io';
 const HL=iso=>new Date(iso).toLocaleString('es-PE',{timeZone:'America/Lima',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).replace(',','');
 const HLi=s=>s?`${s.slice(8,10)}/${s.slice(5,7)} ${s.slice(11,16)}`:'—';     // fecha local de Lima ya escrita como AAAA-MM-DDTHH:MM
 function proximaConsulta(now){const L=new Date(now.getTime()-5*36e5);

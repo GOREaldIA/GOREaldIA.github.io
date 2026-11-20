@@ -1,16 +1,15 @@
-/* Marco común del portal: menú vertical (barra inferior en el celular) y efectos sobrios.
+/* Marco común de los portales de pliegos (Ministro al Día y GORE al Día; una sola versión, en el núcleo): menú vertical (barra inferior en el celular) y efectos sobrios.
    Cada entidad es un portal aparte: dentro de una entidad el menú solo lleva a sus páginas, nunca a otra entidad.
    La lista de entidades y el código de su sede salen de /herramientas/pliegos.json. Sin librerías. */
 (function () {
   'use strict';
-  var PORTAL = {
-    sello: 'G<i>D</i>',
-    nombre: 'GORE al <i>Día</i>',
-    corto: 'GORE<br>al <i>Día</i>',
-    lema: 'Gobiernos regionales · Perú',
-    repo: 'GOREaldIA/GOREaldIA.github.io',
-    elegir: 'Elige el gobierno regional'
-  };
+  // Identidad del portal: herramientas/portal.js (lo genera insertar_marco.py desde portal.json, propio de cada portal).
+  var PORTAL = Object.assign({
+    sello: 'M<i>D</i>', nombre: 'Ministro al <i>Día</i>', corto: 'Ministro<br>al <i>Día</i>',
+    lema: 'Ejecución presupuestal · Perú', repo: 'MinistroaldIA/MinistroaldIA.github.io',
+    elegir: 'Elige la entidad', portada: 'Entidades', quien: 'cada entidad', colores: null
+  }, window.MC_PORTAL || {});
+  if (PORTAL.colores) Object.keys(PORTAL.colores).forEach(function (k) { document.documentElement.style.setProperty('--mc-' + k, PORTAL.colores[k]); });
   var RAIZ = '/';
   var SIN_MOV = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   var DEMO = /[?&]demo=cambio\b/.test(location.search);
@@ -95,7 +94,7 @@
     riel.setAttribute('aria-label', 'Navegación del portal');
     riel.innerHTML = '<a class="mc-marca" href="' + RAIZ + '" title="' + PORTAL.nombre.replace(/<[^>]+>/g, '') + ' · portada">' +
       '<span class="mc-sello"><b>' + PORTAL.sello + '</b></span><small>' + PORTAL.corto + '</small></a>' +
-      '<div class="mc-entidad mc-fija"><small>' + (ID ? 'Pliego' : 'Portal') + '</small><span class="mc-entidad-t">' + (ID ? '…' : 'Gobiernos regionales') + '</span></div>' +
+      '<div class="mc-entidad mc-fija"><small>' + (ID ? 'Pliego' : 'Portal') + '</small><span class="mc-entidad-t">' + (ID ? '…' : PORTAL.portada) + '</span></div>' +
       '<ul class="mc-items">' + htmlItems() + '</ul>' +
       '<div class="mc-vivo mc-pausa" title="Cargando el estado de la revisión automática">' +
       '<span class="mc-et"><span class="mc-punto"></span><span class="mc-vivo-t">EN VIVO</span></span>' +
@@ -171,7 +170,7 @@
     panel.innerHTML = cabecera(PORTAL.elegir, 'Para ver su ' + v.t.toLowerCase() + '.') + '<ul class="mc-lista">' +
       Object.keys(ENT).map(function (id) {
         var e = ENT[id], url = v.url ? v.url(id) : RAIZ + id + '/';
-        return op(url || RAIZ + id + '/', esc(e.sigla.replace(/^GORE\s*/, '').slice(0, 3).toUpperCase()), esc(e.nombre), 'Pliego ' + esc(e.pliego));
+        return op(url || RAIZ + id + '/', esc(e.sigla.replace(/^GORE\s*/, '').slice(0, 5)), esc(e.nombre), 'Pliego ' + esc(e.pliego));
       }).join('') + '</ul>';
     escalonar();
   }
@@ -230,7 +229,7 @@
       cuenta.textContent = (h ? h + ':' + dos(m) : dos(m)) + ':' + dos(s % 60);
     };
     tic(); setInterval(tic, 1000);
-    var quien = ID && ENT[ID] ? ENT[ID].sigla : 'cada gobierno regional';
+    var quien = ID && ENT[ID] ? ENT[ID].sigla : PORTAL.quien;
     var HOR = 'Revisa los datos del MEF de ' + quien + ' cada hora, de 7:23 a 23:23 (hora de Lima).';
     var poner = function (modo, titulo) {
       caja.classList.toggle('mc-pausa', modo !== 'vivo' && modo !== 'revisa');
