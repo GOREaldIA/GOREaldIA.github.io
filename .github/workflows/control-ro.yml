@@ -1,0 +1,273 @@
+name: Control diario de Recursos Ordinarios
+
+# Sigue el ritmo del MEF: cada hora, de 7:23 a 23:23 (hora de Lima), una revisión liviana pregunta si la Consulta Amigable
+# o el archivo diario de Datos Abiertos cambiaron. Solo si hay novedad se descarga, se calcula y se publica.
+# Sirve para todas las entidades de herramientas/pliegos.json (salvo "control": false): una corrida por entidad.
+on:
+  schedule:
+    - cron: "23 12-23 * * *"   # 7:23 a 18:23 hora de Lima
+    - cron: "23 0-4 * * *"     # 19:23 a 23:23 hora de Lima
+  workflow_dispatch:
+    inputs:
+      forzar:
+        description: "Actualizar aunque el MEF no haya publicado nada nuevo"
+        type: boolean
+        default: true
+      rehacer_informe:
+        description: "Rehacer también el informe con el mismo archivo del MEF (tras un cambio en el núcleo)"
+        type: boolean
+        default: false
+      pliego:
+        description: "Solo esta entidad (su clave en pliegos.json, por ejemplo goretumbes). Vacío = todas"
+        type: string
+        default: ""
+      rama_nucleo:
+        description: "Rama del núcleo de análisis (kronos-nucleo) para probar cambios en una rama de prueba. Vacío = main"
+        type: string
+        default: ""
+      probar_aviso:
+        description: "Solo para probar el aviso de falla (crea un aviso de prueba que se cierra solo en la próxima corrida normal)"
+        type: boolean
+        default: false
+
+# Mínimo privilegio: lectura por defecto; solo el trabajo que publica puede escribir en el repositorio.
+permissions:
+  contents: read
+
+concurrency:
+  group: control-ro
+  cancel-in-progress: false
+
+jobs:
+  vigilar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      novedad: ${{ steps.lista.outputs.novedad }}
+      pliegos: ${{ steps.lista.outputs.pliegos }}
+      ca_fecha: ${{ steps.mef.outputs.ca_fecha }}
+      da_publicado: ${{ steps.mef.outputs.da_publicado }}
+      da_clave: ${{ steps.mef.outputs.da_clave }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -q requests==2.34.2          # versión fija, igual que la del trabajo «actualizar»
+      - name: Revisar si el MEF publicó algo nuevo
+        id: mef
+        env:
+          PEDIDO: ${{ inputs.pliego }}
+        # la entidad pedida se pasa como dato (variable entrecomillada) y vigilar_mef.py la valida contra pliegos.json
+        run: |
+          if [ -n "$PEDIDO" ]; then python herramientas/vigilar_mef.py "$PEDIDO"; else python herramientas/vigilar_mef.py; fi
+      - name: Entidades por actualizar
+        id: lista
+        env:
+          PEDIDO: ${{ inputs.pliego }}
+          FORZAR: ${{ github.event_name == 'workflow_dispatch' && inputs.forzar }}
+          PEND: ${{ steps.mef.outputs.pliegos }}
+          MOTIVO: ${{ steps.mef.outputs.motivo }}
+        run: |
+          if [ "$FORZAR" = "true" ]; then
+            # a pedido: la entidad indicada o todas las activas
+            pl=$(python -c "import json,os;P=json.load(open('herramientas/pliegos.json'));p=os.environ['PEDIDO'].strip();print(json.dumps([p] if p else [k for k,v in P.items() if v.get('control',True)]))")
+          else
+            pl="$PEND"
+          fi
+          [ -z "$pl" ] && pl="[]"
+          nov=$([ "$pl" = "[]" ] && echo false || echo true)
+          echo "pliegos=$pl" >> "$GITHUB_OUTPUT"
+          echo "novedad=$nov" >> "$GITHUB_OUTPUT"
+          if [ "$nov" = "true" ]; then echo "::notice::Se actualiza: $pl · $MOTIVO"; else echo "::notice::Sin novedades del MEF; no se descarga nada."; fi
+
+  actualizar:
+    needs: vigilar
+    if: needs.vigilar.outputs.novedad == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 170
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        pliego: ${{ fromJSON(needs.vigilar.outputs.pliegos) }}
+    env:
+      P: ${{ matrix.pliego }}
+      HAY_NUCLEO: ${{ secrets.KRONOS_DEPLOY_KEY != '' }}
+      DA_CLAVE: ${{ needs.vigilar.outputs.da_clave }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Instalar dependencias
+        # Versiones fijas, iguales a kronos-nucleo/requirements.txt (auditoría F1, M4): producción corre con lo mismo que se probó.
+        # Subirlas solo junto con el núcleo y con los controles en verde.
+        run: >-
+          pip install -q pandas==3.0.5 lxml==6.1.3 beautifulsoup4==4.15.0 markdown==3.11 pypdf==6.21.4 openpyxl==3.1.5
+          python-docx==1.2.0 qrcode==8.2 requests==2.34.2 html5lib==1.1
+      - name: Datos de la entidad
+        id: ent
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          P = os.environ["P"]
+          c = json.load(open("herramientas/pliegos.json", encoding="utf-8"))[P]
+          print(f"anio={c['anio']}")
+          print(f"sigla={c.get('sigla') or P.upper()}")
+          PY
+      - name: Traer el núcleo de análisis (repositorio privado)
+        if: env.HAY_NUCLEO == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: AlcaldealdIA/kronos-nucleo
+          ssh-key: ${{ secrets.KRONOS_DEPLOY_KEY }}
+          ref: ${{ inputs.rama_nucleo || 'main' }}
+          path: kronos
+          persist-credentials: false       # la clave del núcleo no queda guardada en disco durante el resto de la corrida
+      - name: ¿La entidad tiene informe en el núcleo?
+        id: nucleo
+        run: |
+          if [ "$HAY_NUCLEO" = "true" ] && [ -f "kronos/pliegos/entidades/$P/pliego.json" ]; then echo "si=true" >> "$GITHUB_OUTPUT"; else echo "si=false" >> "$GITHUB_OUTPUT"; fi
+          echo "gasto=kronos/pliegos/entidades/$P/datos/pliego_${P}_gasto_${{ steps.ent.outputs.anio }}.json" >> "$GITHUB_OUTPUT"
+      - name: Reusar el archivo de gasto si ya se leyó esta misma publicación del MEF
+        id: cache
+        if: steps.nucleo.outputs.si == 'true' && env.DA_CLAVE != 'sin-fecha'
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.nucleo.outputs.gasto }}
+          key: gasto-${{ matrix.pliego }}-${{ steps.ent.outputs.anio }}-${{ env.DA_CLAVE }}
+      - name: Descargar el gasto del pliego (todas las fuentes, una sola lectura del archivo del MEF)
+        if: steps.nucleo.outputs.si == 'true' && steps.cache.outputs.cache-hit != 'true'
+        run: python kronos/pliegos/datos/descargar_pliego.py "$P" --sin-inversiones
+      - name: Guardar el archivo de gasto para las próximas corridas
+        if: steps.nucleo.outputs.si == 'true' && steps.cache.outputs.cache-hit != 'true' && env.DA_CLAVE != 'sin-fecha'
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.nucleo.outputs.gasto }}
+          key: gasto-${{ matrix.pliego }}-${{ steps.ent.outputs.anio }}-${{ env.DA_CLAVE }}
+      - name: Pruebas de regresión del control (si fallan, no se calcula ni se publica)
+        run: python herramientas/pruebas_control.py
+      - name: Calcular el control diario de RO
+        run: |
+          # con núcleo: lee el archivo de gasto ya descargado; sin él, el control descarga y filtra Datos Abiertos por su cuenta
+          # Código 3 = la fuente disponible trae un corte ANTERIOR al publicado: no se escriben cifras, se conserva el corte
+          # publicado y estado.json registra el motivo (se publica solo ese estado). Cualquier otro error detiene la corrida.
+          rc=0
+          if [ "${{ steps.nucleo.outputs.si }}" = "true" ]; then
+            python herramientas/tablero_ro.py "$P" --json "${{ steps.nucleo.outputs.gasto }}" || rc=$?
+          else
+            python herramientas/tablero_ro.py "$P" || rc=$?
+          fi
+          if [ "$rc" = 3 ]; then touch /tmp/control_retenido; echo "::warning::Se conserva el corte publicado de $P (la fuente disponible es anterior)."; elif [ "$rc" != 0 ]; then exit "$rc"; fi
+      - name: Verificar el control antes de publicar (si falla, se conserva el último corte válido)
+        run: python herramientas/verificar_control.py "$P"
+      - name: Actualizar el informe de saldos si el MEF publicó un archivo nuevo
+        if: steps.nucleo.outputs.si == 'true'
+        env:
+          REHACER: ${{ inputs.rehacer_informe }}
+        run: |
+          GASTO="${{ steps.nucleo.outputs.gasto }}"
+          nuevo=$(python -c "import re;s=open('$GASTO').read(600);print(re.search(r'\"publicado\":\s*\"([^\"]+)\"',s).group(1))")
+          previo=$(python -c "import json;print(json.load(open('$P/estado_informe.json')).get('publicado') or '')" 2>/dev/null || echo "")
+          echo "archivo del MEF: $nuevo · informe publicado con: $previo"
+          if [ "$nuevo" = "$previo" ] && [ "$REHACER" != "true" ]; then echo "El informe ya está al día."; exit 0; fi
+          # LibreOffice recalcula las fórmulas del Excel para que guarde sus resultados (comprobación 10)
+          (sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends libreoffice-calc libreoffice-writer fonts-liberation >/dev/null) || echo "::warning::No se pudo instalar LibreOffice; la comprobación del Excel fallará y se conservará el informe anterior."
+          # Auditoría F2, A5: si el MEF publica un archivo de inversiones vacío o dañado, la descarga lo rechaza y se sigue con
+          # el F12B anterior del núcleo (aviso en la corrida), sin frenar el informe ni el control diario.
+          python kronos/pliegos/datos/descargar_pliego.py "$P" --solo-inversiones || echo "::warning::Inversiones del MEF rechazadas; el informe usa el F12B anterior."
+          if python kronos/pliegos/automatico.py "$P"; then
+            W=kronos/salida/pliegos/$P/web_publica
+            mkdir -p "$P/descargas"
+            cp $W/index.html $W/anexos.html $W/estado_informe.json "$P/"
+            [ -f $W/prioridades.html ] && cp $W/prioridades.html "$P/"
+            # Excel y, si la entidad los tiene, los informes en PDF (ejecutivo y detallado) de la cabecera
+            rm -f "$P"/descargas/*.xlsx "$P"/descargas/*.pdf && cp $W/descargas/* "$P/descargas/"
+            [ -f $W/ro_referencias.json ] && cp $W/ro_referencias.json "$P/ro/referencias.json"
+            python herramientas/actualizar_portada.py "$P"
+            python herramientas/insertar_marco.py "$P"
+          else
+            touch /tmp/informe_fallo
+            echo "::warning::Una comprobación del informe falló; se conserva la versión anterior."
+          fi
+      - name: Registrar lo que se vio del MEF
+        # Las fechas vienen del servidor del MEF: se pasan como datos (variables entrecomilladas), nunca pegadas dentro del guion.
+        env:
+          DA_PUB: ${{ needs.vigilar.outputs.da_publicado }}
+          CA_FECHA: ${{ needs.vigilar.outputs.ca_fecha }}
+        run: |
+          # Si el informe falló, no se da por vista la publicación de Datos Abiertos: la próxima revisión volverá a intentarlo.
+          da="$DA_PUB"
+          # Tampoco si la entidad tiene informe publicado pero esta corrida no pudo rehacerlo (sin acceso al núcleo).
+          if [ -f /tmp/informe_fallo ] || { [ "${{ steps.nucleo.outputs.si }}" != "true" ] && [ -f "$P/estado_informe.json" ]; }; then da=""; fi
+          # Si se conservó el corte (fuente anterior), no se da por vista ninguna señal: la próxima revisión reintenta.
+          ca="$CA_FECHA"
+          if [ -f /tmp/control_retenido ]; then ca=""; da=""; fi
+          python herramientas/vigilar_mef.py --guardar "$ca" "$da" "$P"
+      - name: Marco común en las páginas de la entidad (menú y efectos)
+        run: python herramientas/insertar_marco.py "$P"
+      - name: Publicar
+        run: |
+          git config user.name "GOREaldIA"
+          git config user.email "noreply@users.noreply.github.com"
+          git add -A "$P/ro"
+          git add -A "$P/index.html" "$P/anexos.html" "$P/prioridades.html" "$P/estado_informe.json" "$P/descargas" index.html 2>/dev/null || true
+          if git diff --cached --quiet; then echo "Sin cambios."; exit 0; fi
+          inf=""
+          if [ -f "$P/estado_informe.json" ] && ! git diff --cached --quiet -- "$P/index.html"; then inf=" · informe al $(python -c "import json;print(json.load(open('$P/estado_informe.json'))['corte_txt'])")"; fi
+          if git diff --cached --quiet -- "$P/ro/historial.csv" "$P/ro/proyectos.json"; then msg="consulta sin corte nuevo"; else msg="corte $(python -c "import json;print(json.load(open('$P/ro/datos.json'))['corte'])")"; fi
+          git commit -m "Control RO ${{ steps.ent.outputs.sigla }}: ${msg}${inf}"
+          # se publica en la rama donde corre la tarea (main en el portal; una rama de prueba no toca el sitio)
+          ok=0; for i in 1 2 3 4 5; do git pull --rebase -q origin "$GITHUB_REF_NAME" && git push origin "HEAD:$GITHUB_REF_NAME" && ok=1 && break; git rebase --abort 2>/dev/null || true; sleep $((5 + RANDOM % 20)); done; [ "$ok" = 1 ]
+
+  # Aviso de falla (19/11/2026): si una parte de la tarea termina en error, o una página no se pudo actualizar y se conservó la
+  # versión anterior, se abre UN aviso (issue) asignado a la cuenta, y GitHub lo manda por correo. Mientras siga abierto no se
+  # repite; la primera corrida que vuelva a funcionar lo cierra sola. Solo en main (una rama de prueba no avisa).
+  avisar:
+    needs: [vigilar, actualizar]
+    if: always() && github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+      actions: read
+      checks: read
+    steps:
+      - name: Avisar si algo falló (y cerrar el aviso cuando vuelve a funcionar)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RES: "${{ needs.vigilar.result }} ${{ needs.actualizar.result }}"
+          RUN_ID: ${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          PROBAR: ${{ github.event_name == 'workflow_dispatch' && inputs.probar_aviso }}
+        run: |
+          motivo=""
+          case " $RES " in *" failure "*) motivo="una parte de la tarea terminó con error";; esac
+          # avisos de la corrida que significan que una página no se actualizó (se conservó la versión anterior)
+          : > /tmp/avisos.txt
+          for j in $(gh run view "$RUN_ID" --json jobs --jq '.jobs[].databaseId'); do
+            gh api "repos/$GH_REPO/check-runs/$j/annotations" --jq '.[].message' >> /tmp/avisos.txt 2>/dev/null || true
+          done
+          if grep -q -E 'Una comprobación del informe falló|no se publicó nada' /tmp/avisos.txt; then
+            motivo="${motivo:+$motivo; }una página no se pudo actualizar y se conservó la versión anterior"
+          fi
+          [ "$PROBAR" = "true" ] && motivo="prueba del aviso (no es una falla real; se cierra en la próxima corrida normal)"
+          abierto=$(gh issue list --label falla-automatica --state open --json number --jq '.[0].number // empty')
+          if [ -n "$motivo" ]; then
+            if [ -n "$abierto" ]; then echo "Ya hay un aviso abierto (#$abierto): no se repite."; exit 0; fi
+            gh label create falla-automatica --color B60205 --description "Aviso automático: la tarea horaria falló" 2>/dev/null || true
+            printf '%s\n' "La tarea automática de las $(TZ=America/Lima date '+%H:%M del %d/%m/%Y') (hora de Lima) tuvo un problema: **$motivo**." "" \
+              "- Lo publicado no se borró: la página sigue mostrando su última versión válida." \
+              "- Detalle de la corrida: $RUN_URL" \
+              "- Este aviso se cierra solo cuando una corrida vuelva a funcionar. Si sigue abierto varias horas, pida revisarlo." > /tmp/cuerpo.md
+            gh issue create --label falla-automatica --assignee AlcaldealdIA --title "Falla en la actualización automática" --body-file /tmp/cuerpo.md
+          elif [ -n "$abierto" ]; then
+            gh issue close "$abierto" --comment "Volvió a funcionar en la corrida $RUN_URL. Aviso cerrado automáticamente."
+          else
+            echo "Sin problemas."
+          fi
