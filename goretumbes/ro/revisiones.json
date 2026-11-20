@@ -1,5 +1,15 @@
 {
- "revisiones": [],
+ "revisiones": [
+  {
+   "registrado": "2026-11-20T10:27",
+   "corte": "2026-11-19",
+   "indicador": "Riesgo estimado (ejecución reciente)",
+   "antes": 28420155.95,
+   "despues": 27479667.4,
+   "motivo": "Las cifras del día pasaron de Consulta Amigable a Datos Abiertos; el ritmo y el detalle de Datos Abiertos pasaron del 17/11/2026 al 19/11/2026.",
+   "tipo": "fuente"
+  }
+ ],
  "primera_publicacion": {
   "2026-11-13": {
    "publicado": "2026-11-14T22:01",
