@@ -8,6 +8,15 @@
    "despues": 27479667.4,
    "motivo": "Las cifras del día pasaron de Consulta Amigable a Datos Abiertos; el ritmo y el detalle de Datos Abiertos pasaron del 17/11/2026 al 19/11/2026.",
    "tipo": "fuente"
+  },
+  {
+   "registrado": "2026-11-21T10:16",
+   "corte": "2026-11-20",
+   "indicador": "Riesgo estimado (ejecución reciente)",
+   "antes": 28524912.77,
+   "despues": 27861548.16,
+   "motivo": "Las cifras del día pasaron de Consulta Amigable a Datos Abiertos; el ritmo y el detalle de Datos Abiertos pasaron del 19/11/2026 al 20/11/2026.",
+   "tipo": "fuente"
   }
  ],
  "primera_publicacion": {
