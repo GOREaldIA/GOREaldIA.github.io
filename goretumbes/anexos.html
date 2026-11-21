@@ -286,6 +286,49 @@ header.cab .sub{font-size:14.5px;margin:0 0 6px}
 @media(max-width:640px){.hb .ej span:nth-child(even){display:none}.hb{padding-right:58px !important}
  .panel2>.ttab,.panel2>div>.ttab{display:block;overflow-x:auto;max-width:100%}.ctrl select,.ctrl input{max-width:100%;min-width:0;width:100%;flex:1 1 100%}}
 
+.cabina{background:linear-gradient(135deg,#0f2240,#13294b 60%,#183560);border-radius:16px;padding:18px 18px 14px;box-shadow:0 6px 18px rgba(19,41,75,.18);color:#dbe3ef}
+.cabina-ins{display:grid;grid-template-columns:repeat(auto-fit,minmax(172px,1fr));gap:12px}
+.ins{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.10);border-radius:14px;padding:12px 12px 14px;display:flex;flex-direction:column;align-items:center;min-width:0}
+.ins.top{border-color:rgba(25,195,156,.55);box-shadow:inset 0 0 0 1px rgba(25,195,156,.25)}
+.ins-cab{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:center;min-height:22px;width:100%}
+.ins-sg{font:700 12px var(--f-t);letter-spacing:.04em;color:#fff;background:var(--c);border-radius:999px;padding:2px 10px}
+.ins-b{font:600 10.5px var(--f-t);color:#bfe9dc;border:1px solid rgba(191,233,220,.35);border-radius:999px;padding:1px 8px}
+.ins-b.alerta{color:#ffd2cc;border-color:rgba(255,210,204,.4)}
+.dial{width:100%;max-width:190px;height:auto;margin:6px 0 2px;display:block}
+.dial .bisel{fill:#0a1830;stroke:#3a5a88;stroke-width:1.5}.dial .fondo{fill:#0d1f3a}
+.dial .zn{fill:none;stroke-width:5;stroke-linecap:butt}
+.dial .tk{font:600 7px var(--f-t);fill:#8fa3c0;text-anchor:middle}
+.dial .ref{stroke:#fff;stroke-width:2.6;stroke-linecap:round}
+.dial .aguja{stroke-width:3.2;stroke-linecap:round}
+.dial .eje{fill:#e9eef6;stroke:#0a1830;stroke-width:1.5}
+.dial .ventana{fill:#050e1c;stroke:#2a4a7c;stroke-width:1}
+.dial .val{font:700 12.5px var(--f-t);fill:#fff;text-anchor:middle;font-variant-numeric:tabular-nums}
+.dial .pts{font:600 8px var(--f-t);fill:#9fb0c9;text-anchor:middle}
+.dial .pulso{animation:ins-pulso 2.4s ease-in-out infinite}
+@keyframes ins-pulso{50%{opacity:.35}}
+.ins-txt{width:100%;text-align:center}
+.ins-txt h4{margin:2px 0 8px;font:700 14.5px var(--f-t);color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.odo-l{font:600 10px var(--f-t);letter-spacing:.06em;text-transform:uppercase;color:#8fa3c0;margin-top:6px}
+.odo{display:inline-block;margin-top:3px;background:#050e1c;border:1px solid #2a4a7c;border-radius:6px;padding:4px 9px;font:600 14px var(--f-m,ui-monospace),monospace;color:#7fe0c3;letter-spacing:.03em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.odo.r{color:#f6c86b}
+.cabina-ley{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.10);font-size:12.5px;color:#cfd8e6}
+.cabina-ley i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.cabina-ley .ley-ref{width:3px;height:13px;border-radius:2px;background:#fff;vertical-align:-2px}
+@media (max-width:640px){
+ .cabina{padding:12px 10px 12px;border-radius:14px}
+ .cabina-ins{grid-template-columns:1fr;gap:10px}
+ .ins{display:grid;grid-template-columns:118px minmax(0,1fr);grid-template-areas:"dial cab" "dial txt";align-items:center;column-gap:12px;padding:10px 12px}
+ .ins-cab{grid-area:cab;justify-content:flex-start}
+ .dial{grid-area:dial;margin:0;max-width:118px}
+ .ins-txt{grid-area:txt;text-align:left}
+ .ins-txt h4{margin:4px 0 2px;font-size:14px}
+ .odo-l{margin-top:4px;font-size:9.5px}
+ .odo{font-size:13px;padding:3px 8px}
+ .cabina-ley{font-size:12px;gap:6px 14px}
+}
+@media (prefers-reduced-motion:reduce){.dial .pulso{animation:none}}
+@media print{.cabina{box-shadow:none}.dial .pulso{animation:none}}
+
 section[class^="t-"] th{background:var(--tono)}section[class^="t-"] tbody tr:nth-child(even) td{background:var(--tinte)}
 section[class^="t-"] h3{color:var(--tono)}
 .k{border-top-color:var(--navy)!important}.k .v{color:var(--navy)!important}.k.oro{border-top-color:#d99a06!important}
