@@ -7,6 +7,11 @@
  "elegir": "Elige el gobierno regional",
  "portada": "Gobiernos regionales",
  "quien": "cada gobierno regional",
- "colores": {"navy": "#12304a", "navy2": "#0a1f33", "gold": "#2fc4a0"},
- "commit": "GOREaldIA"
+ "colores": {
+  "navy": "#12304a",
+  "navy2": "#0a1f33",
+  "gold": "#2fc4a0"
+ },
+ "commit": "GOREaldIA",
+ "url": "https://gorealdia.github.io"
 }
